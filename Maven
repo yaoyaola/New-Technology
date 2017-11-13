@@ -1,0 +1,425 @@
+1.为什么用Maven:
+在以前使用Ant的时候，我们会建立一个lib目录在存放我们的jar包，比如项目所依赖的第三方包，每建立一个项目都要建立一个lib，不停的做copy工作，
+不仅是对于磁盘的浪费，而且也造成了版本管理上的麻烦。而且我们还需要通过提交到svn上来对lib进行管理，但是svn对于这种二进制文件的管理并不出色。
+
+Maven仓库的初中就是为了解决这个问题，是所有常用的第三方jar包的集中营。这样所有的Maven项目就可以从这个仓库中获取所需要的资源，
+Maven仓库中对jar通过Group Id, Atifact Id, version 来管理，所以Maven项目可以很方便的进行依赖管理。
+你不需要自己来管理这个庞大的资源仓库，当然你可以创建一个公司层面的仓库管理器.
+
+2.Maven的用途:
+maven是一个项目构建和管理的工具，提供了帮助管理 构建、文档、报告、依赖、scms、发布、分发的方法。可以方便的编译代码、进行依赖管理、管理二进制库等等。
+maven的好处在于可以将项目过程规范化、自动化、高效化以及强大的可扩展性。利用maven自身及其插件还可以获得代码检查报告、单元测试覆盖率、实现持续集成等等。
+
+Maven是一个项目管理和综合工具。Maven提供了开发人员构建一个完整的生命周期框架。开发团队可以自动完成项目的基础工具建设，
+Maven使用标准的目录结构和默认构建生命周期。在多个开发团队环境时，Maven可以设置按标准在非常短的时间里完成配置工作。
+由于大部分项目的设置都很简单，并且可重复使用，Maven让开发人员的工作更轻松，同时创建报表，检查，构建和测试自动化设置。
+
+Maven 仓库的两个概念：本地仓库和远程仓库
+本地仓库是远程仓库的一个缓冲和子集，当你构建Maven项目的时候，首先会从本地仓库查找资源，如果没有，那么Maven会从远程仓库下载到你本地仓库。
+这样在你下次使用的时候就不需要从远程下载了。如果你所需要的jar包版本在本地仓库没有，而且也不存在于远程仓库，Maven在构建的时候会报错，
+这种情况可能发生在有些jar包的新版本没有在Maven仓库中及时更新。
+
+Maven缺省的本地仓库地址为${user.home}/.m2/repository 。也就是说，一个用户会对应的拥有一个本地仓库。
+当然你可以通过修改${user.home}/.m2/settings.xml 配置这个地址：
+
+<settings>    
+  …    
+  <localRepository> D:/java/repository</localRepository>    
+  …    
+</settings>  
+
+
+当我们创建一个简单的Maven项目后(只需要在pom.xml配置好依赖)，运行mvn clean install就可以把项目构建好，不需要我们手工下载任何jar，
+这全靠中央仓库的存在，它会自动从仓库下载。这个仓库的定义是在${M2_HOME}/lib/maven-2.0.10-uber.jar 里面。
+你可以在里面找到/org/apache/maven/project/pom-4.0.0.xml 这个文件，在这个文件里面定义了中央仓库的地址：
+
+<repositories>    
+  <repository>    
+    <id> central</id>    
+    <name> Maven Repository Switchboard</name>    
+    <layout> default</layout>    
+    <url> http://repo1.maven.org/maven2</url>    
+    <snapshots>    
+      <enabled> false</enabled>    
+    </snapshots>    
+  </repository>    
+</repositories>  
+
+------------------------------------------------- Maven核心----------------------------------------------------------------
+3.Maven核心
+核心概念(Pom、Repositories、Artifact、Build Lifecycle、Goal).
+
+Maven的中心思想是POM文件（项目对象模型）。POM文件是以XML文件的形式表述项目的资源，如源码、测试代码、依赖（用到的外部Jar包）等。
+POM文件应该位于项目的根目录下。
+
+3.1 pom是指project object Model。pom是一个xml，在maven2里为pom.xml。是maven工作的基础，在执行task或者goal时，
+maven会去项目根目录下读取pom.xml获得需要的配置信息
+pom文件中包含了项目的信息和maven build项目所需的配置信息，通常有项目信息(如版本、成员)、项目的依赖、插件和goal、build选项等等.
+
+pom文件中节点含义如下：
+project            pom文件的顶级元素
+modelVersion       所使用的object model版本，为了确保稳定的使用，这个元素是强制性的。除非maven开发者升级模板，否则不需要修改
+groupId            是项目创建团体或组织的唯一标志符，通常是域名倒写，如groupId  org.apache.maven.plugins就是为所有maven插件预留的
+artifactId         是项目artifact唯一的基地址名
+packaging          artifact打包的方式，如jar、war、ear等等。默认为jar。这个不仅表示项目最终产生何种后缀的文件，也表示build过程使用什么样的lifecycle。
+version            artifact的版本，通常能看见为类似0.0.1-SNAPSHOT，其中SNAPSHOT表示项目开发中，为开发版本
+name               表示项目的展现名，在maven生成的文档中使用
+url                表示项目的地址，在maven生成的文档中使用
+description        表示项目的描述，在maven生成的文档中使用
+dependencies       表示依赖，在子节点dependencies中添加具体依赖的groupId artifactId和version
+build              表示build配置
+parent             表示父pom
+
+其中groupId:artifactId:version唯一确定了一个artifact
+
+
+什么是pom?
+pom作为项目对象模型。通过xml表示maven项目，使用pom.xml来实现。主要描述了项目：包括配置文件；开发者需要遵循的规则，缺陷管理系统，组织和licenses，
+项目的url，项目的依赖性，以及其他所有的项目相关因素。
+
+
+POM包括了所有的项目信息。
+maven 相关：
+pom定义了最小的maven元素，允许groupId,artifactId,version。所有需要的元素
+groupId:项目或者组织的唯一标志，并且配置时生成的路径也是由此生成，如org.codehaus.mojo生成的相对路径为：/org/codehaus/mojo 
+artifactId: 项目的通用名称 
+version:项目的版本 
+packaging: 打包的机制，如pom, jar, maven-plugin, ejb, war, ear, rar, par 
+classifier: 分类 
+
+<!--POM关系 -->
+POM关系： 
+主要为依赖，继承，合成
+3.1.1.依赖关系：
+<dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.0</version>
+      <type>jar</type>
+      <scope>test</scope>
+      <optional>true</optional>
+    </dependency>
+    
+  </dependencies>
+
+
+groupId, artifactId, version:描述了依赖的项目唯一标志 
+type:相应的依赖产品包形式，如jar，war 
+scope:用于限制相应的依赖范围，包括以下的几种变量： 
+compile ：默认范围，用于编译 
+provided：类似于编译，但支持你期待jdk或者容器提供，类似于classpath 
+runtime:在执行时，需要使用 
+test:用于test任务时使用 
+system:需要外在提供相应得元素。通过systemPath来取得 
+systemPath: 仅用于范围为system。提供相应的路径 
+optional: 标注可选，当项目自身也是依赖时。用于连续依赖时使用 
+
+独占性
+外在告诉maven你只包括指定的项目，不包括相关的依赖。此因素主要用于解决版本冲突问题
+<dependencies>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-embedder</artifactId>
+      <version>2.0</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.maven</groupId>
+          <artifactId>maven-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    
+表示项目maven-embedder需要项目maven-core，但我们不想引用maven-core
+
+
+3.1.2.继承关系
+定义父项目：
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>my-parent</artifactId>
+  <version>2.0</version>
+  <packaging>pom</packaging>
+</project>
+
+packaging 类型，需要pom用于parent和合成多个项目。我们需要增加相应的值给父pom，用于子项目继承。主要的元素如下：
+依赖型 
+开发者和合作者 
+插件列表 
+报表列表 
+插件执行使用相应的匹配ids 
+插件配置 
+子项目配置 
+
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.codehaus.mojo</groupId>
+    <artifactId>my-parent</artifactId>
+    <version>2.0</version>
+    <relativePath>../my-parent</relativePath>
+  </parent>
+  <artifactId>my-project</artifactId>
+</project>
+
+
+dependencyManagement：
+用于父项目配置共同的依赖关系，主要配置依赖包相同因素，如版本，scope。
+
+3.1.3.合成（或者多个模块）
+一个项目有多个模块，也叫做多重模块，或者合成项目
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.codehaus.mojo</groupId>
+  <artifactId>my-parent</artifactId>
+  <version>2.0</version>
+  <modules>
+    <module>my-project1<module>
+    <module>my-project2<module>
+  </modules>
+</project>
+
+<!--POM关系 -->
+
+
+3.2 Artifact
+项目将要产生的文件,可以是jar文件，源文件，二进制文件，war文件，甚至是pom文件
+需要被使用(依赖)的artifact都要放在仓库(见Repository)中。
+
+3.3 Repositories
+Repositories是用来存储Artifact的。如果说我们的项目产生的Artifact是一个个小工具，那么Repositories就是一个仓库，里面有我们自己创建的工具，
+也可以储存别人造的工具，我们在项目中需要使用某种工具时，在pom中声明dependency，编译代码时就会根据dependency去下载工具（Artifact），供自己使用。
+对于自己的项目完成后可以通过mvn install命令将项目放到仓库（Repositories）中。
+仓库分为本地仓库和远程仓库，远程仓库是指远程服务器上用于存储Artifact的仓库，本地仓库是指本机存储Artifact的仓库，
+对于windows机器本地仓库地址为系统用户的.m2/repository下面。
+对于需要的依赖，在pom中添加dependency即可，可以在maven的仓库中搜索：http://mvnrepository.com/
+
+3.4 4 Build Lifecycle
+是指一个项目build的过程。maven的Build Lifecycle分为三种，分别为default（处理项目的部署）、clean（处理项目的清理）、site（处理项目的文档生成）。
+他们都包含不同的lifecycle。Build Lifecycle是由phases构成的，下面重点介绍default Build Lifecycle几个重要的phase：
+
+validate：验证工程是否正确，所有需要的资源是否可用。 
+compile：编译项目的源代码。   
+test：使用合适的单元测试框架来测试已编译的源代码。这些测试不需要已打包和布署。 
+Package：把已编译的代码打包成可发布的格式，比如jar。 
+integration-test：如有需要，将包处理和发布到一个能够进行集成测试的环境。 
+verify：运行所有检查，验证包是否有效且达到质量标准。 
+install：把包安装在本地的repository中，可以被其他工程作为依赖来使用。 
+Deploy：在集成或者发布环境下执行，将最终版本的包拷贝到远程的repository，使得其他的开发者或者工程可以共享。 
+clean：清除先前构建的artifacts（在maven中，把由项目生成的包都叫作artifact）。 
+site：为项目生成文档站点。 
+
+3.5 Goal
+goal代表一个特定任务
+A goal represents a specific task (finer than a build phase) which contributes to the building and managing of a project.
+mvn package表示打包的任务，通过上面的介绍我们知道，这个任务的执行会先执行package phase之前的phase
+mvn deploy表示部署的任务
+mven clean install则表示先执行clean的phase（包含其他子phase），再执行install的phase。
+
+
+------------------------------------------------- Maven核心----------------------------------------------------------------
+
+
+
+其他主要设置：
+
+build 设置
+主要用于编译设置，包括两个主要的元素，build和report
+build
+主要分为两部分，基本元素和扩展元素集合
+注意：包括项目build和profile build
+
+<project>
+  <!-- "Project Build" contains more elements than just the BaseBuild set -->
+  <build>...</build>
+  <profiles>
+    <profile>
+      <!-- "Profile Build" contains a subset of "Project Build"s elements -->
+      <build>...</build>
+    </profile>
+  </profiles>
+</project>
+
+基本元素：
+<build>
+  <defaultGoal>install</defaultGoal>
+  <directory>${basedir}/target</directory>
+  <finalName>${artifactId}-${version}</finalName>
+  <filters>
+    <filter>filters/filter1.properties</filter>
+  </filters>
+  
+</build>
+
+
+defaultGoal: 定义默认的目标或者阶段。如install 
+directory: 编译输出的目录 
+finalName: 生成最后的文件的样式 
+filter: 定义过滤，用于替换相应的属性文件，使用maven定义的属性。设置所有placehold的值
+
+资源(resources) 
+你项目中需要指定的资源。如spring配置文件,log4j.properties
+<project>
+  <build>
+    
+    <resources>
+      <resource>
+        <targetPath>META-INF/plexus</targetPath>
+        <filtering>false</filtering>
+        <directory>${basedir}/src/main/plexus</directory>
+        <includes>
+          <include>configuration.xml</include>
+        </includes>
+        <excludes>
+          <exclude>**/*.properties</exclude>
+        </excludes>
+      </resource>
+    </resources>
+    <testResources>
+      
+    </testResources>
+    
+  </build>
+</project>
+
+resources: resource的列表，用于包括所有的资源 
+targetPath: 指定目标路径，用于放置资源，用于build 
+filtering: 是否替换资源中的属性placehold 
+directory: 资源所在的位置 
+includes: 样式，包括那些资源 
+excludes: 排除的资源 
+testResources: 测试资源列表 
+
+插件 plugins
+在build时，执行的插件，比较有用的部分，如使用jdk 7.0编译等等
+<project>
+  <build>
+    
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.0</version>
+        <extensions>false</extensions>
+        <inherited>true</inherited>
+        <configuration>
+          <classifier>test</classifier>
+        </configuration>
+        <dependencies></dependencies>
+        <executions></executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+
+extensions: true or false，是否装载插件扩展。默认false 
+inherited: true or false，是否此插件配置将会应用于poms，那些继承于此的项目 
+configuration: 指定插件配置 
+dependencies: 插件需要依赖的包 
+executions: 用于配置execution目标，一个插件可以有多个目标。 
+如下：
+<plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+
+        <executions>
+          <execution>
+            <id>echodir</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>verify</phase>
+            <inherited>false</inherited>
+            <configuration>
+              <tasks>
+                <echo>Build Dir: ${project.build.directory}</echo>
+              </tasks>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+  说明：
+
+
+id:规定execution 的唯一标志 
+goals: 表示目标 
+phase: 表示阶段，目标将会在什么阶段执行 
+inherited: 和上面的元素一样，设置false maven将会拒绝执行继承给子插件 
+configuration: 表示此执行的配置属性
+
+插件管理 
+    pluginManagement：插件管理以同样的方式包括插件元素，用于在特定的项目中配置。所有继承于此项目的子项目都能使用。主要定义插件的共同元素
+
+扩展元素集合
+主要包括以下的元素：
+Directories
+用于设置各种目录结构，如下：
+
+<build>
+    <sourceDirectory>${basedir}/src/main/java</sourceDirectory>
+    <scriptSourceDirectory>${basedir}/src/main/scripts</scriptSourceDirectory>
+    <testSourceDirectory>${basedir}/src/test/java</testSourceDirectory>
+    <outputDirectory>${basedir}/target/classes</outputDirectory>
+    <testOutputDirectory>${basedir}/target/test-classes</testOutputDirectory>
+    
+  </build>
+
+
+Extensions
+表示需要扩展的插件，必须包括进相应的build路径。
+<project>
+  <build>
+    
+    <extensions>
+      <extension>
+        <groupId>org.apache.maven.wagon</groupId>
+        <artifactId>wagon-ftp</artifactId>
+        <version>1.0-alpha-3</version>
+      </extension>
+    </extensions>
+    
+  </build>
+</project>
+
+Reporting
+用于在site阶段输出报表。特定的maven 插件能输出相应的定制和配置报表。
+
+<reporting>
+    <plugins>
+      <plugin>
+        <outputDirectory>${basedir}/target/site</outputDirectory>
+        <artifactId>maven-project-info-reports-plugin</artifactId>
+        <reportSets>
+          <reportSet></reportSet>
+        </reportSets>
+      </plugin>
+    </plugins>
+  </reporting>
+  
+Report Sets
+用于配置不同的目标，应用于不同的报表
+<reporting>
+    <plugins>
+      <plugin>
+        
+        <reportSets>
+          <reportSet>
+            <id>sunlink</id>
+            <reports>
+              <report>javadoc</report>
+            </reports>
+            <inherited>true</inherited>
+            <configuration>
+              <links>
+                <link>http://java.sun.com/j2se/1.5.0/docs/api/</link>
+              </links>
+            </configuration>
+          </reportSet>
+        </reportSets>
+      </plugin>
+    </plugins>
+  </reporting>
+  
+  
+  
+ 
