@@ -1,0 +1,182 @@
+Java Bean
+每一个类实现了Bean的规范才可以由Spring来接管，那么Bean的规范是什么呢？
+1.必须是个公有(public)类
+2.有无参构造函数
+3.用公共方法暴露内部成员属性(getter,setter)
+实现这样规范的类，被称为Java Bean。即是一种可重用的组件。
+
+为什么要使用Spring？
+Spring主要两个有功能为我们的业务对象管理提供了非常便捷的方法：
+1.DI（Dependency Injection，依赖注入）
+2.AOP（Aspect Oriented Programming，面向切面编程）
+
+------------------------------------------------------控制反转---------------------------------------------------------------
+
+Inversion of Controller 控制反转是框架的重要特征
+IoC模式，系统中通过引入实现了IoC模式的IoC容器，即可由IoC容器来管理对象的生命周期、依赖关系等，
+从而使得应用程序的配置和依赖性规范与实际的应用程序代码分开。其中一个特点就是通过文本的配置文件进行应用程序组件间相互关系的配置，
+而不用重新修改并编译具体的代码。
+
+可以把IoC模式看做是工厂模式的升华，可以把IoC看作是一个大工厂，只不过这个大工厂里要生成的对象都是在XML文件中给出定义的，然后利用Java 的“反射”编程，
+根据XML中给出的类名生成相应的对象。从实现来看，IoC是把以前在工厂方法里写死的对象生成代码，改变为由XML文件来定义，
+也就是把工厂和对象生成这两者独立分隔开来，目的就是提高灵活性和可维护性。
+
+(在过去，反射编程方式相对于正常的对象生成方式要慢10几倍，这也许也是当时为什么反射技术没有普遍应用开来的原因。但经SUN改良优化后，
+反射方式生成对象和通常对象生成方式，速度已经相差不大了（但依然有一倍以上的差距）。)
+
+IoC是一个很大的概念,可以用不同的方式实现。其主要形式有两种：依赖查找、依赖注入
+1.依赖查找:容器提供回调接口和上下文条件给组件。EJB和Apache Avalon 都使用这种方式。这样一来，组件就必须使用容器提供的API来查找资源和协作对象，
+          仅有的控制反转只体现在那些回调方法上：容器将调用这些回调方法，从而让应用代码获得相关资源。
+2.依赖注入：组件不做定位查询，只提供普通的Java方法让容器去决定依赖关系。容器全权负责的组件的装配，
+           它会把符合依赖关系的对象通过JavaBean属性或者构造函数传递给需要的对象。通过JavaBean属性注射依赖关系的做法称为设值方法注入
+           (Setter Injection)；将依赖关系作为构造函数参数传入的做法称为构造器注入（Constructor Injection）
+
+------------------------------------------------------控制反转---------------------------------------------------------------
+
+而依赖注入(Dependency Injection)是控制反转的一种实现方法。James Shore给出了依赖注入的定义：
+依赖注入就是将实例变量传入到一个对象中去(Dependency injection means giving an object its instance variables)。
+
+DI-依赖注入（Spring的核心就是依赖注入）
+一个系统中可能会有成千上万个对象。如果要手工维护它们之间的关系，这是不可想象的。我们可以在Spring的XML文件描述它们之间的关系，
+由Spring自动来注入它们——比如A类的实例需要B类的实例作为参数set进去。
+
+-------------------------------------------------  为什么用依赖注入 ---------------------------------------------------------------
+为什么用依赖注入？
+在我们的日常开发中，创建对象的操作随处可见以至于对其十分熟悉的同时又感觉十分繁琐，每次需要对象都需要亲手将其new出来，
+甚至某些情况下由于坏编程习惯还会造成对象无法被回收，这是相当糟糕的。但更为严重的是，我们一直倡导的松耦合，少入侵原则，这种情况下变得一无是处。
+于是前辈们开始谋求改变这种编程陋习，考虑如何使用编码更加解耦合，由此而来的解决方案是面向接口的编程，于是便有了解决此类问题的各种办法，
+比如面向接口编程。
+面向接口编程在很大程度上降低了代码的耦合度，但是代码依旧存在入侵性和一定程度的耦合性,比如当被依赖的实现类被修改时，功能实现类仍然要修改内部代码，
+当依赖的类多起来时，查找和修改的过程也会显得相当糟糕，因此我们仍需要寻找一种方式，
+它可以令开发者在无需触及功能实现类的内容代码的情况下实现修改被依赖的实现类，以便达到最低的耦合度和最少入侵的目的。
+
+实际上存在一种称为反射的编程技术可以协助解决上述问题，反射是一种根据给出的完整类名（字符串方式）来动态地生成对象，
+这种编程方式可以让对象在生成时才决定到底是哪一种对象，因此可以这样假设，在某个配置文件，该文件已写好功能实现类的完全限定名称，
+通过读取该文件而获取到功能实现类的真正实现类完全限定名称，然后通过反射技术在运行时动态生成该类，最终赋值给bookDao接口，也就解决了刚才的存在问题，
+这里为简单演示，使用properties文件作为配置文件，
+
+//获取完全限定名称
+String className=propertiesUtil.get("bookDao.name");
+//通过反射
+Class c=Class.forName(className);
+//动态生成实例对象
+bookDao= (BookDao) c.newInstance();
+
+这样做的好处是在替换被依赖实现类的情况只需修改配置文件的内容而无需触及功能实现类的内部代码，从而把代码修改的过程转到配置文件中，
+相当于功能实现类及其内部的依赖接口通过配置文件与依赖接口的实现类进行关联，这样功能实现类与依赖接口的实现类间也就实现了解耦合，
+当然功能实现类中存在着依赖接口对象是无法避免的，毕竟这是协同工作的基础，我们只能最大程度去解耦合。
+
+了解了上述的问题再来理解IOC就显得简单多了。Spring IOC 也是一个java对象，在某些特定的时间被创建后，可以进行对其他对象的控制，
+包括初始化、创建、销毁等。简单地理解，在上述过程中，我们通过配置文件配置了功能实现类的完全限定名称，然后利用反射在运行时为依赖接口创建实际实现类，
+包括功能实现类的创建，Spring的IOC容器都会帮我们完成，而我们唯一要做的就是把需要创建的类和其他类依赖的类以配置文件的方式告诉IOC容器
+需要创建那些类和注入哪些类即可。Spring通过这种控制反转（IoC）的设计模式促进了松耦合，
+这种方式使一个对象依赖其它对象时会通过被动的方式传送进来（如BookServiceImpl被创建时，其依赖的BookDao的实现类也会同时被注入BookServiceImpl中），
+而不是通过手动创建这些类。我们可以把IoC模式看做是工厂模式的升华，可以把IoC看作是一个大工厂，
+只不过这个大工厂里要生成的对象都是在配置文件(XML)中给出定义的，然后利用Java的反射技术，根据XML中给出的类名生成相应的对象。
+从某种程度上来说，IoC相当于把在工厂方法里通过硬编码创建对象的代码，改变为由XML文件来定义，也就是把工厂和对象生成这两者独立分隔开来，
+目的就是提高灵活性和可维护性，更是达到最低的耦合度，因此我们要明白所谓为的IOC就将对象的创建权,交由Spring完成，从此解放手动创建对象的过程，
+同时让类与类间的关系到达最低耦合度。
+
+-------------------------------------------------  为什么用依赖注入 ---------------------------------------------------------------
+
+
+Spring依赖注入（DI）的三种方式，分别为：
+1．接口注入
+2．Setter方法注入
+3．构造方法注入
+
+
+IoC
+Spring框架的两个最基本和最重要的包是org.springframework.beans.factory（该包中的主要接口是BeanFactory）
+和org.springframework.context包（该包中的主要接口是ApplicationFactory）。这两个包中的代码提供了Spring IoC特性的基础。
+
+Spring IoC框架的主要组件有：Beans、配置文件(beans.xml或applicationContext.xml)、BeanFactory接口及其相关类、ApplicationContext接口及其相关类。
+
+************************************************* IoC的主要组件 ******************************************************************
+IoC的主要组件：
+1.Beans：Beans是指项目中提供业务功能的Bean，即容器要管理的Bean。Beans就是一个常见的JavaBean，Java类。
+2.配置文件(beans.xml或applicationContext.xml)：是用来装配Beans的。
+— 在Spring中对Bean的管理是在配置文件中进行的。在Spring容器内编辑配置文件管理Bean又称为Bean的装配；实际上装配就是告诉容器需要哪些Bean，
+  以及容器是如何使用IoC将它们配合起来。
+— Bean的配置文件是一个XML文件，它可命名为beans.xml、applicationContext.xml或其它。一般习惯使用applicationContext.xml。
+— 配置文件包含Bean的id、类、属性及其值；包含一个<beans>元素和数个<bean>子元素。Spring IoC框架可根据Bean的id从Bean配置文件中取得该Bean的类，
+  并生成该类的一个对象，继而从配置文件中获得该对象的属性和值。常见applicationContext.xml配置文件格式如下：
+  <?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN 2.0//EN" 
+  "http://www.springframework.org/dtd/spring-beans-2.0.dtd" 
+  [<!ENTITY contextInclude SYSTEM 
+  "org/springframework/web/context/WEB-INF/contextInclude.xml">]>
+  <!--配置文件的根元素-->
+  <beans>
+  <bean id= "chinese" class="iocexample2.Chinese">
+        <!--
+  <property>元素用来指定需要容器注入的属性；name指定属性值为language；ref指定需要向language属性注入的id，即注入的对象“英语”，该对象由English类生成。
+  -->
+        <property name="language" ref="英语"></property>
+    </bean>
+    <!--配置另外一个Bean-->
+    <bean id="英语" class="iocexample2.English"></bean>
+  </beans> 
+
+3.BeanFactory接口及其相关类：
+— BeanFactory采用了工厂设计模式，即Bean容器模式，负责读取Bean的配置文件，管理对象的生成、加载，维护Bean对象与Bean对象之间的依赖关系，
+  负责Bean的生命周期，对于简单的应用程序来说，使用BeanFactory就已经足够管理Bean，在对象的管理上就可以获得许多便利性。
+— org.springframework.beans.factory.BeanFactory是一个顶级接口，它包含管理Bean的各种方法。Spring3框架也提供一些实现了该接口的类。
+— org.springframework.beans.factory.xml.XmlBeanFactory是BeanFactory常用的实现类。其根据配置文件中的定义装载Bean。要创建XmlBeanFactory，
+  需要传递一个FileInputStream对象，该对象把XML文件提供给工厂。
+— 代码可以写成：
+BeanFactory factory=new XmlBeanFactory( new FileInputStream("applicationContext.xml "));  
+— BeanFactory的常用方法如下：
+getBean(String name)：该方法可根据Bean的id生成该Bean的对象。
+getBean(String name,Class requiredType)：该方法可根据Bean的id和相应类生成该Bean的对象。
+
+4.ApplicationContext接口及其相关类：
+— 作为一个应用程序框架，只提供Bean容器管理的功能是不够的。若要利用Spring3所提供的一些高级容器功能，则可以使用ApplicationContext接口，
+  该接口是提供高级功能的容器。
+— ApplicationContext的基本功能与BeanFactory很相似，但它还有以下功能：
+提供访问资源文件的更方便的方法。
+支持国际化消息。
+提供文字消息解析的方法。
+可以发布事件，对事件感兴趣的Bean可以接收到这些事件。
+— ApplicationContext接口的常用实现类有3个：
+FileSystemXmlApplicationContext：从文件系统中的XML文件加载上下文中定义的信息。
+ClassPathXmlApplicationContext：从类路径中的XML文件加载上下文中定义的信息，把上下文定义的文件当成类路径资源。
+XmlWebApplicationContext：从Web系统中的XML文件加载上下文中定义的信息。
+— 其中FileSystemXmlApplicationContext和ClassPathXmlApplicationContext的代码编写如下：
+ApplicationContext context=new FileSystemXmlApplicationContext("d:/applicationContext.xml ");  
+ApplicationContext context=new ClassPathXmlApplicationContext("applicationContext.xml ");  
+第一种使用文件系统的方式来查询配置文件，此时applicationContext.xml文件位于D盘下，第二种使用类路径来查询配置文件，
+此时applicationContext.xml文件位于项目的src目录底下。
+
+— FileSystemXmlApplicationContext和ClassPathXmlApplicationContext的区别是：FileSystemXmlApplicationContext只能在指定的路径中
+  查询applicationContext.xml配置文件，而ClassPathXmlApplicationContext可以在整个类路径中查询applicationContext.xml。
+  
+
+************************************************* IoC的主要组件 ******************************************************************
+
+传统编程和IoC的对比
+
+传统编程：决定使用哪个具体的实现类的控制权在调用类本身，在编译阶段就确定了。
+IoC模式：调用类只依赖接口，而不依赖具体的实现类，减少了耦合。控制权交给了容器，在运行的时候才由容器决定将具体的实现动态的“注入”到调用类的对象中。
+
+Don't call us, we'll call you
+
+使用IoC的好处：
+(1).可维护性比较好，非常便于进行单元测试，便于调试程序和诊断故障。代码中的每一个Class都可以单独测试，彼此之间互不影响，只要保证自身的功能无误即可，
+    这就是组件之间低耦合或者无耦合带来的好处。
+(2).每个开发团队的成员都只需要关注自己要实现的业务逻辑，完全不用去关心其他人的工作进展，因为你的任务跟别人没有任何关系，你的任务可以单独测试，
+    你的任务也不用依赖于别人的组件，再也不用扯不清责任了。所以，在一个大中型项目中，团队成员分工明确、责任明晰，很容易将一个大的任务划分为细小的任务，
+    开发效率和产品质量必将得到大幅度的提高。
+(3).可复用性好，我们可以把具有普遍性的常用组件独立出来，反复应用到项目中的其它部分，或者是其它项目，当然这也是面向对象的基本特征。
+    显然，IoC更好地贯彻了这个原则，提高了模块的可复用性。符合接口标准的实现，都可以插接到支持此标准的模块中。
+(4).IoC生成对象的方式转为外置方式，也就是把对象生成放在配置文件里进行定义，这样，当我们更换一个实现子类将会变得很简单，只要修改配置文件就可以了，
+    完全具有热插拨的特性。
+
+
+
+AOP-面向切面编程
+AOP作为面向对象编程的一种补充，广泛应用于处理一些具有横切性质的系统级服务，如事务管理、安全检查、缓存、对象池管理等。
+AOP 实现的关键就在于 AOP 框架自动创建的 AOP 代理，AOP 代理则可分为静态代理和动态代理两大类，其中静态代理是指使用 AOP 框架提供的命令进行编译，
+从而在编译阶段就可生成 AOP 代理类，因此也称为编译时增强；而动态代理则在运行时借助于 JDK 动态代理、CGLIB 等在内存中"临时"生成 AOP 动态代理类，
+因此也被称为运行时增强。
+
