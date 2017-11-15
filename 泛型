@@ -1,0 +1,88 @@
+泛型是Java 1.5的新特性，泛型的本质是参数化类型，也就是说所操作的数据类型被指定为一个参数。
+这种参数类型可以用在类、接口和方法的创建中，分别称为泛型类、泛型接口、泛型方法。
+
+Java泛型被引入的好处是安全简单，在编译的时候检查类型安全，并且所有的强制转换都是自动和隐式的，提高代码的重用率。
+在Java SE 1.5之前，没有泛型的情况的下，通过对类型Object的引用来实现参数的“任意化”，“任意化”带来的缺点是要做显式的强制类型转换，
+而这种转换是要求开发者对实际参数类型可以预知的情况下进行的。对于强制类型转换错误的情况，编译器可能不提示错误，在运行的时候才出现异常，
+这是一个安全隐患。
+
+泛型在使用中还有一些规则和限制：
+1、泛型的类型参数只能是类类型（包括自定义类），不能是简单类型。
+2、同一种泛型可以对应多个版本（因为参数类型是不确定的），不同版本的泛型类实例是不兼容的。
+3、泛型的类型参数可以有多个。
+4、泛型的参数类型可以使用extends语句，例如。习惯上成为“有界类型”。
+5、泛型的参数类型还可以是通配符类型。
+如：Class<?> classType = Class.forName(java.lang.String);  
+
+类型擦除（type erasure）
+Java中的泛型基本上都是在编译器这个层次来实现的。在生成的Java字节码中是不包含泛型中的类型信息的。使用泛型的时候加上的类型参数，
+会在编译器在编译的时候去掉。这个过程就称为类型擦除。
+
+如在代码中定义的List<object>和List<String>等类型，在编译后都会编程List。JVM看到的只是List，
+而由泛型附加的类型信息对JVM来说是不可见的。Java编译器会在编译时尽可能的发现可能出错的地方，
+但是仍然无法避免在运行时刻出现类型转换异常的情况。类型擦除也是Java的泛型实现方法与C++模版机制实现方式之间的重要区别。
+
+类型擦除后保留的原始类型
+原始类型（raw type）就是擦除去了泛型信息，最后在字节码中的类型变量的真正类型。无论何时定义一个泛型类型，相应的原始类型都会被自动地提供。类型变量被擦除（crased），并使用其限定类型（无限定的变量用Object）替换。
+
+class Pair<T> {    
+  private T value;    
+  public T getValue() {    
+    return value;    
+  }    
+  public void setValue(T  value) {    
+    this.value = value;    
+  }    
+}   
+
+Pair<T>的原始类型为：
+class Pair {    
+  private Object value;    
+  public Object getValue() {    
+    return value;    
+  }    
+  public void setValue(Object  value) {    
+    this.value = value;    
+  }    
+}  
+
+因为在Pair<T>中，T是一个无限定的类型变量，所以用Object替换。其结果就是一个普通的类，如同泛型加入java变成语言之前已经实现的那样。
+在程序中可以包含不同类型的Pair，如Pair<String>或Pair<Integer>，但是，擦除类型后它们就成为原始的Pair类型了，原始类型都是Object。
+
+如果类型变量有限定，那么原始类型就用第一个边界的类型变量来替换。
+比如Pair这样声明：
+public class Pair<T extends Comparable& Serializable> {   
+那么原始类型就是Comparable
+
+注意：
+如果Pair这样声明public class Pair<T extends Serializable&Comparable> ，那么原始类型就用Serializable替换，
+而编译器在必要的时要向Comparable插入强制类型转换。为了提高效率，应该将标签（tagging）接口（即没有方法的接口）放在边界限定列表的末尾。
+要区分原始类型和泛型变量的类型
+在调用泛型方法的时候，可以指定泛型，也可以不指定泛型。
+在不指定泛型的情况下，泛型变量的类型为 该方法中的几种类型的同一个父类的最小级，直到Object。
+在指定泛型的时候，该方法中的几种类型必须是该泛型实例类型或者其子类。
+
+public class Test{    
+  public static void main(String[] args) {    
+    /**不指定泛型的时候*/    
+    int i=Test.add(1, 2); //这两个参数都是Integer，所以T为Integer类型    
+    Number f=Test.add(1, 1.2);//这两个参数一个是Integer，以风格是Float，所以取同一父类的最小级，为Number    
+    Object o=Test.add(1, "asd");//这两个参数一个是Integer，以风格是Float，所以取同一父类的最小级，为Object    
+    
+    /**指定泛型的时候*/    
+    int a=Test.<Integer>add(1, 2);//指定了Integer，所以只能为Integer类型或者其子类    
+    int b=Test.<Integer>add(1, 2.2);//编译错误，指定了Integer，不能为Float    
+    Number c=Test.<Number>add(1, 2.2); //指定为Number，所以可以为Integer和Float    
+  }    
+  
+  //这是一个简单的泛型方法    
+  public static <T> T add(T x,T y){    
+    return y;    
+  }    
+}  
+
+其实在泛型类中，不指定泛型的时候，也差不多，只不过这个时候的泛型类型为Object，就比如ArrayList中，
+如果不指定泛型，那么这个ArrayList中可以放任意类型的对象。
+
+
+
