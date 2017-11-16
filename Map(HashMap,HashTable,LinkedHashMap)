@@ -242,6 +242,11 @@ HashTable 相对于HashMap是线程安全的，因为方法上有synchronized修
 ---------------------------------------------------LinkedHashMap---------------------------------------------------------------
 大多数情况下，只要不涉及线程安全问题，Map基本都可以使用HashMap，不过HashMap有一个问题，就是迭代HashMap的顺序并不是HashMap放置的顺序，也就是无序。
 HashMap的这一缺点往往会带来困扰，因为有些场景，我们期待一个有序的Map。
+
+LinkedHashMap 几乎和 HashMap 一样：从技术上来说，不同的是它定义了一个 Entry<K,V> header，这个 header 不是放在 Table 里，它是额外独立出来的。
+LinkedHashMap 通过继承 hashMap 中的 Entry<K,V>,并添加两个属性 Entry<K,V> before,after,和 header 结合起来组成一个双向链表，
+来实现按插入顺序或访问顺序排序。
+
 LinkedHashMap可以认为是HashMap+LinkedList，即它既使用HashMap操作数据结构，又使用LinkedList维护插入元素的先后顺序。
 public class LinkedHashMap<K,V>
     extends HashMap<K,V>
