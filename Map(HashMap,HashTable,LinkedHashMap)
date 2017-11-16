@@ -394,10 +394,10 @@ void createEntry(int hash, K key, V value, int bucketIndex) {
 }
 
 private void addBefore(Entry<K,V> existingEntry) {
-    after  = existingEntry;
-    before = existingEntry.before;
-    before.after = this;
-    after.before = this;
+    after  = existingEntry;//当前新增Entry的after置为header
+    before = existingEntry.before;//当前新增Entry的before置为header的before（就是原来的最新增进Entry）
+    before.after = this;//把当前新增Entry的before（即header）的after置为当前新增Entry
+    after.before = this;//把当前新增Entry的after（即header）的before置为当前新增Entry
 }
 
 createEntry(int hash,K key,V value,int bucketIndex)方法覆盖了父类HashMap中的方法。这个方法不会拓展table数组的大小。
