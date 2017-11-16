@@ -188,10 +188,355 @@ LinkedList是一种双向链表，双向链表有两点含义：
 
 私有属性
 LinkedList中定义了两个私有属性：
-
 private transient Entry<E> header = new Entry<E>(null, null, null);
-
 private transient int size = 0;
+
+header是双向链表的头节点，它是双向链表节点所对应的类Entry的实例。Entry中包含成员变量： previous, next,element。
+其中，previous是该节点的上一个节点，next是该节点的下一个节点，element是该节点所包含的值。 
+size是双向链表中节点实例的个数。
+
+首先来了解节点类Entry类的代码
+private static class Entry<E> {
+    E element;
+    Entry<E> next;
+    Entry<E> previous;
+
+    Entry(E element, Entry<E> next, Entry<E> previous) {
+        this.element = element;
+        this.next = next;
+        this.previous = previous;
+   }
+}
+
+LinkedList的Entry中的"E element"，就是它真正存储的数据。
+"Entry<E> next"和"Entry<E> previous"表示的就是这个存储单元的前一个存储单元的引用地址和后一个存储单元的引用地址。
+
+
+构造函数
+LinkedList提供了两个构造方法，如下所示：
+public LinkedList() {
+    header.next = header.previous = header;
+}
+
+public LinkedList(Collection<? extends E> c) {
+    this();
+   addAll(c);
+}
+第一个构造方法不接受参数，将header实例的previous和next全部指向header实例
+（注意，这个是一个双向循环链表，如果不是循环链表，空链表的情况应该是header节点的前一节点和后一节点均为null），
+这样整个链表其实就只有header一个节点，用于表示一个空的链表。
+
+第二个构造方法接收一个Collection参数c，调用第一个构造方法构造一个空的链表，之后通过addAll将c中的元素全部添加到链表中。
+
+
+四个LinkedList关注点
+
+关注点	                        结论
+LinkedList是否允许空	          允许
+LinkedList是否允许重复数据	    允许
+LinkedList是否有序	           有序
+LinkedList是否线程安全	     非线程安全
+
+
+添加元素
+首先LinkedList添加一个元素为header
+new了一个Entry出来名为header，Entry里面的previous、element、next都为null，执行构造函数的时候，将previous和next的值都设置为header的引用地址
+
+private Entry<E> addBefore(E e, Entry<E> entry) {
+    Entry<E> newEntry = new Entry<E>(e, entry, entry.previous);
+    newEntry.previous.next = newEntry;
+    newEntry.next.previous = newEntry;
+    size++;
+    modCount++;
+    return newEntry;
+}
+
+addBefore(E e,Entry<E> entry)方法是个私有方法，所以无法在外部程序中调用（当然，这是一般情况，你可以通过反射上面的还是能调用到的）。
+addBefore(E e,Entry<E> entry)先通过Entry的构造方法创建e的节点newEntry（包含了将其下一个节点设置为entry，上一个节点设置为entry.previous的操作，
+相当于修改newEntry的“指针”），之后修改插入位置后newEntry的前一节点的next引用和后一节点的previous引用，使链表节点间的引用关系保持正确。
+之后修改和size大小和记录modCount，然后返回新插入的节点。
+
+为什么要这么做？双向链表的两个特点，一是任意节点都可以向前和向后寻址，二是整个链表头的previous表示的是链表的尾Entry，
+链表尾的next表示的是链表的头Entry。
+
+
+查看元素
+public E get(int index) {
+    return entry(index).element;
+}
+
+// 获取双向链表中指定位置的节点    
+private Entry<E> entry(int index) {    
+    if (index < 0 || index >= size)    
+        throw new IndexOutOfBoundsException("Index: "+index+    
+                                            ", Size: "+size);    
+    Entry<E> e = header;    
+    // 获取index处的节点。    
+    // 若index < 双向链表长度的1/2,则从前向后查找;    
+    // 否则，从后向前查找。    
+    if (index < (size >> 1)) {    
+        for (int i = 0; i <= index; i++)    
+            e = e.next;    
+    } else {    
+        for (int i = size; i > index; i--)    
+            e = e.previous;    
+    }    
+    return e;    
+}
+
+get(int)方法首先判断位置信息是否合法（大于等于0，小于当前LinkedList实例的Size），然后遍历到具体位置，获得节点的业务数据（element）并返回。
+注意：为了提高效率，需要根据获取的位置判断是从头还是从尾开始遍历。
+
+这段代码就体现出了双向链表的好处了。双向链表增加了一点点的空间消耗（每个Entry里面还要维护它的前置Entry的引用），同时也增加了一定的编程复杂度，
+却大大提升了效率。
+
+注意细节：位运算与直接做除法的区别。先将index与长度size的一半比较，如果index<size/2，就只从位置0往后遍历到位置index处，
+而如果index>size/2，就只从位置size往前遍历到位置index处。这样可以减少一部分不必要的遍历。
+
+
+
+删除元素
+public E remove(int index) {
+     return remove(entry(index));
+}
+
+private E remove(Entry<E> e) {
+    if (e == header)
+        throw new NoSuchElementException();
+    // 保留将被移除的节点e的内容
+    E result = e.element;
+    // 将前一节点的next引用赋值为e的下一节点
+    e.previous.next = e.next;
+    // 将e的下一节点的previous赋值为e的上一节点
+    e.next.previous = e.previous;
+    // 上面两条语句的执行已经导致了无法在链表中访问到e节点，而下面解除了e节点对前后节点的引用
+    e.next = e.previous = null;
+    // 将被移除的节点的内容设为null
+    e.element = null;
+    // 修改size大小
+    size--;
+    modCount++;
+    // 返回移除节点e的内容
+    return result;
+}
+
+
+LinkedList和ArrayList的对比
+1、顺序插入速度ArrayList会比较快，因为ArrayList是基于数组实现的，数组是事先new好的，只要往指定位置塞一个数据就好了；
+  LinkedList则不同，每次顺序插入的时候LinkedList将new一个对象出来，如果对象比较大，那么new的时间势必会长一点，再加上一些引用赋值的操作，
+  所以顺序插入LinkedList必然慢于ArrayList
+2、基于上一点，因为LinkedList里面不仅维护了待插入的元素，还维护了Entry的前置Entry和后继Entry，如果一个LinkedList中的Entry非常多，
+  那么LinkedList将比ArrayList更耗费一些内存
+3、有些说法认为LinkedList做插入和删除更快，这种说法其实是不准确的：
+（1）LinkedList做插入、删除的时候，慢在寻址，快在只需要改变前后Entry的引用地址
+（2）ArrayList做插入、删除的时候，慢在数组元素的批量copy，快在寻址
+
+所以，如果待插入、删除的元素是在数据结构的前半段尤其是非常靠前的位置的时候，LinkedList的效率将大大快过ArrayList，
+因为ArrayList将批量copy大量的元素；越往后，对于LinkedList来说，因为它是双向链表，
+所以在第2个元素后面插入一个数据和在倒数第2个元素后面插入一个元素在效率上基本没有差别，但是ArrayList由于要批量copy的元素越来越少，
+操作速度必然追上乃至超过LinkedList。
+
+从这个分析看出，如果你十分确定你插入、删除的元素是在前半段，那么就使用LinkedList；如果你十分确定你删除、删除的元素在比较靠后的位置，
+那么可以考虑使用ArrayList。如果你不能确定你要做的插入、删除是在哪儿呢？那还是建议你使用LinkedList吧，因为一来LinkedList整体插入、
+删除的执行效率比较稳定，没有ArrayList这种越往后越快的情况；二来插入元素的时候，弄得不好ArrayList就要进行一次扩容，记住，
+ArrayList底层数组扩容是一个既消耗时间又消耗空间的操作。
+
 
 
 ************************************************** LinkedList **************************************************************
+
+**************************************************** HashSet  **************************************************************
+HashSet实现Set接口，由哈希表（实际上是一个HashMap实例）支持。它不保证set 的迭代顺序；特别是它不保证该顺序恒久不变。此类允许使用null元素。
+HashSet中不允许有重复元素，这是因为HashSet是基于HashMap实现的，HashSet中的元素都存放在HashMap的key上面，
+而value中的值都是统一的一个private static final Object PRESENT = new Object();。
+HashSet跟HashMap一样，都是一个存放链表的数组。
+
+HashSet中add方法调用的是底层HashMap中的put()方法，而如果是在HashMap中调用put，首先会判断key是否存在，如果key存在则修改value值，
+如果key不存则这插入这个key-value。
+而在set中，因为value值没有用，也就不存在修改value值的说法，因此往HashSet中添加元素，首先判断元素（也就是key）是否存在，如果不存在则插入，
+如果存在则不插入，这样HashSet中就不存在重复值。
+
+public class HashSet<E>
+    extends AbstractSet<E>
+    implements Set<E>, Cloneable, java.io.Serializable
+{
+    static final long serialVersionUID = -5024744406713321676L;
+
+    // 底层使用HashMap来保存HashSet中所有元素。
+    private transient HashMap<E,Object> map;
+    
+    // 定义一个虚拟的Object对象作为HashMap的value，将此对象定义为static final。
+    private static final Object PRESENT = new Object();
+
+    /**
+     * 默认的无参构造器，构造一个空的HashSet。
+      * 
+     * 实际底层会初始化一个空的HashMap，并使用默认初始容量为16和加载因子0.75。
+      */
+    public HashSet() {
+        map = new HashMap<E,Object>();
+    }
+
+    /**
+     * 构造一个包含指定collection中的元素的新set。
+      *
+     * 实际底层使用默认的加载因子0.75和足以包含指定
+     * collection中所有元素的初始容量来创建一个HashMap。
+     * @param c 其中的元素将存放在此set中的collection。
+     */
+    public HashSet(Collection<? extends E> c) {
+        map = new HashMap<E,Object>(Math.max((int) (c.size()/.75f) + 1, 16));
+        addAll(c);
+    }
+
+    /**
+     * 以指定的initialCapacity和loadFactor构造一个空的HashSet。
+     *
+     * 实际底层以相应的参数构造一个空的HashMap。
+     * @param initialCapacity 初始容量。
+     * @param loadFactor 加载因子。
+     */
+    public HashSet(int initialCapacity, float loadFactor) {
+        map = new HashMap<E,Object>(initialCapacity, loadFactor);
+    }
+
+    /**
+     * 以指定的initialCapacity构造一个空的HashSet。
+     *
+     * 实际底层以相应的参数及加载因子loadFactor为0.75构造一个空的HashMap。
+     * @param initialCapacity 初始容量。
+     */
+    public HashSet(int initialCapacity) {
+        map = new HashMap<E,Object>(initialCapacity);
+    }
+
+    /**
+     * 以指定的initialCapacity和loadFactor构造一个新的空链接哈希集合。
+     * 此构造函数为包访问权限，不对外公开，实际只是是对LinkedHashSet的支持。
+     *
+     * 实际底层会以指定的参数构造一个空LinkedHashMap实例来实现。
+     * @param initialCapacity 初始容量。
+     * @param loadFactor 加载因子。
+     * @param dummy 标记。
+     */
+    HashSet(int initialCapacity, float loadFactor, boolean dummy) {
+        map = new LinkedHashMap<E,Object>(initialCapacity, loadFactor);
+    }
+
+    /**
+     * 返回对此set中元素进行迭代的迭代器。返回元素的顺序并不是特定的。
+     * 
+     * 底层实际调用底层HashMap的keySet来返回所有的key。
+     * 可见HashSet中的元素，只是存放在了底层HashMap的key上，
+     * value使用一个static final的Object对象标识。
+     * @return 对此set中元素进行迭代的Iterator。
+     */
+    public Iterator<E> iterator() {
+        return map.keySet().iterator();
+    }
+
+    /**
+     * 返回此set中的元素的数量（set的容量）。
+     *
+     * 底层实际调用HashMap的size()方法返回Entry的数量，就得到该Set中元素的个数。
+     * @return 此set中的元素的数量（set的容量）。
+     */
+    public int size() {
+        return map.size();
+    }
+
+    /**
+     * 如果此set不包含任何元素，则返回true。
+     *
+     * 底层实际调用HashMap的isEmpty()判断该HashSet是否为空。
+     * @return 如果此set不包含任何元素，则返回true。
+     */
+    public boolean isEmpty() {
+        return map.isEmpty();
+    }
+
+    /**
+     * 如果此set包含指定元素，则返回true。
+     * 更确切地讲，当且仅当此set包含一个满足(o==null ? e==null : o.equals(e))
+     * 的e元素时，返回true。
+     *
+     * 底层实际调用HashMap的containsKey判断是否包含指定key。
+     * @param o 在此set中的存在已得到测试的元素。
+     * @return 如果此set包含指定元素，则返回true。
+     */
+    public boolean contains(Object o) {
+        return map.containsKey(o);
+    }
+
+    /**
+     * 如果此set中尚未包含指定元素，则添加指定元素。
+     * 更确切地讲，如果此 set 没有包含满足(e==null ? e2==null : e.equals(e2))
+     * 的元素e2，则向此set 添加指定的元素e。
+     * 如果此set已包含该元素，则该调用不更改set并返回false。
+     *
+     * 底层实际将将该元素作为key放入HashMap。
+     * 由于HashMap的put()方法添加key-value对时，当新放入HashMap的Entry中key
+     * 与集合中原有Entry的key相同（hashCode()返回值相等，通过equals比较也返回true），
+     * 新添加的Entry的value会将覆盖原来Entry的value，但key不会有任何改变，
+     * 因此如果向HashSet中添加一个已经存在的元素时，新添加的集合元素将不会被放入HashMap中，
+     * 原来的元素也不会有任何改变，这也就满足了Set中元素不重复的特性。
+     * @param e 将添加到此set中的元素。
+     * @return 如果此set尚未包含指定元素，则返回true。
+     */
+    public boolean add(E e) {
+        return map.put(e, PRESENT)==null;
+    }
+
+    /**
+     * 如果指定元素存在于此set中，则将其移除。
+     * 更确切地讲，如果此set包含一个满足(o==null ? e==null : o.equals(e))的元素e，
+     * 则将其移除。如果此set已包含该元素，则返回true
+     * （或者：如果此set因调用而发生更改，则返回true）。（一旦调用返回，则此set不再包含该元素）。
+     *
+     * 底层实际调用HashMap的remove方法删除指定Entry。
+     * @param o 如果存在于此set中则需要将其移除的对象。
+     * @return 如果set包含指定元素，则返回true。
+     */
+    public boolean remove(Object o) {
+        return map.remove(o)==PRESENT;
+    }
+
+    /**
+     * 从此set中移除所有元素。此调用返回后，该set将为空。
+     *
+     * 底层实际调用HashMap的clear方法清空Entry中所有元素。
+     */
+    public void clear() {
+        map.clear();
+    }
+
+    /**
+     * 返回此HashSet实例的浅表副本：并没有复制这些元素本身。
+     *
+     * 底层实际调用HashMap的clone()方法，获取HashMap的浅表副本，并设置到HashSet中。
+     */
+    public Object clone() {
+        try {
+            HashSet<E> newSet = (HashSet<E>) super.clone();
+            newSet.map = (HashMap<E, Object>) map.clone();
+            return newSet;
+        } catch (CloneNotSupportedException e) {
+            throw new InternalError();
+        }
+    }
+}
+
+注意：
+当我们试图把某个类的对象当成 HashMap 的 key，或试图将这个类的对象放入 HashSet 中保存时，
+重写该类的 equals(Object obj) 方法和 hashCode() 方法很重要，而且这两个方法的返回值必须保持一致：
+当该类的两个的 hashCode() 返回值相同时，它们通过 equals() 方法比较也应该返回 true。
+通常来说，所有参与计算 hashCode() 返回值的关键属性，都应该用于作为 equals() 比较的标准。
+
+总结：
+（1）HashSet 的实现其实非常简单，它只是封装了一个 HashMap 对象来存储所有的集合元素，所有放入 HashSet 中的集合元素实际上由 HashMap 的 key 来保存，
+     而 HashMap 的 value 则存储了一个 PRESENT，它是一个静态的 Object 对象。
+（2）对于HashSet中保存的对象，请注意正确重写其equals和hashCode方法，以保证放入的对象的唯一性。
+
+
+**************************************************** HashSet  **************************************************************
+
