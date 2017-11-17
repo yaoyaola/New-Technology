@@ -36,6 +36,7 @@ public interface BeanFactory {
 }
 
 
+
 3.ListableBeanFactory接口内容：
 public interface ListableBeanFactory extends BeanFactory {
     //BeanDefinition相关
@@ -58,6 +59,8 @@ public interface ListableBeanFactory extends BeanFactory {
     <A extends Annotation> A findAnnotationOnBean(String beanName, Class<A> annotationType);
     
 }
+
+
 
 获取bean时,Spring 鼓励使用这个接口定义的api. 主要提供三类方法： 
 1.获取BeanDefinition 
@@ -283,6 +286,7 @@ AbstractAutowireCapableBeanFactory 实现了bean的create过程
 DefaultListableBeanFactory 实现了BeanDefinition的管理
 
 ******************************************   基本容器-BeanFactory   ****************************************************
+
 
 
 ****************************************** BeanFactory中Bean的实例化过程  ***********************************************
@@ -573,4 +577,3 @@ protected Object initializeBean(final String beanName, final Object bean, RootBe
 }
 
 ****************************************** BeanFactory中Bean的实例化过程  ***********************************************
-
