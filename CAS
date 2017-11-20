@@ -1,0 +1,359 @@
+在JDK 5之前Java语言是靠synchronized关键字保证同步的，这会导致有锁
+锁机制存在以下问题：
+（1）在多线程竞争下，加锁、释放锁会导致比较多的上下文切换和调度延时，引起性能问题。
+（2）一个线程持有锁会导致其它所有需要此锁的线程挂起。
+（3）如果一个优先级高的线程等待一个优先级低的线程释放锁会导致优先级倒置，引起性能风险。
+
+volatile是不错的机制，但是volatile不能保证原子性。因此对于同步最终还是要回到锁机制上来。
+独占锁是一种悲观锁，synchronized就是一种独占锁，会导致其它所有需要锁的线程挂起，等待持有锁的线程释放锁。而另一个更加有效的锁就是乐观锁。
+所谓乐观锁就是，每次不加锁而是假设没有冲突而去完成某项操作，如果因为冲突失败就重试，直到成功为止。乐观锁用到的机制就是CAS，Compare and Swap。
+
+CAS
+CAS:Compare and Swap, 翻译成比较并交换。 
+java.util.concurrent包中借助CAS实现了区别于synchronouse同步锁的一种乐观锁。
+
+CAS 的含义是“我认为原有的值应该是什么，如果是，则将原有的值更新为新值，否则不做修改，并告诉我原来的值是多少”。
+
+非阻塞算法 （nonblocking algorithms）
+一个线程的失败或者挂起不应该影响其他线程的失败或挂起的算法。
+
+
+在intel的CPU中，使用cmpxchg指令,硬件厂商早就在芯片中加入了大量直至并发操作的原语，从而在硬件层面提升效率.
+在Java发展初期，java语言是不能够利用硬件提供的这些便利来提升系统的性能的。而随着java不断的发展,Java本地方法(JNI)的出现，
+使得java程序越过JVM直接调用本地方法提供了一种便捷的方式，因而java在并发的手段上也多了起来。
+而在Doug Lea提供的cucurenct包中，CAS理论是它实现整个java包的基石。
+
+CAS 操作包含三个操作数 —— 内存位置（V）、预期原值（A）和新值(B)。 
+如果内存位置的值与预期原值相匹配，那么处理器会自动将该位置值更新为新值 。否则，处理器不做任何操作。
+无论哪种情况，它都会在 CAS 指令之前返回该位置的值。（在 CAS 的一些特殊情况下将仅返回 CAS 是否成功，而不提取当前 值。）
+CAS 有效地说明了“我认为位置 V 应该包含值 A；如果包含该值，则将 B 放到这个位置；否则，不要更改该位置，只告诉我这个位置现在的值即可。”
+
+通常将 CAS 用于同步的方式是从地址 V 读取值 A，执行多步计算来获得新值 B，然后使用 CAS 将 V 的值从 A 改为 B。如果 V 处的值尚未同时更改，则 CAS 操作成功。
+
+类似于 CAS 的指令允许算法执行读-修改-写操作，而无需害怕其他线程同时 修改变量，因为如果其他线程修改变量，那么 CAS 会检测它（并失败），
+算法可以对该操作重新计算。
+
+CAS存在的问题
+CAS虽然很高效的解决原子操作，但是CAS仍然存在三大问题:ABA问题，循环时间长开销大和只能保证一个共享变量的原子操作.
+1.  ABA问题。
+因为CAS需要在操作值的时候检查下值有没有发生变化，如果没有发生变化则更新，但是如果一个值原来是A，变成了B，又变成了A，
+那么使用CAS进行检查时会发现它的值没有发生变化，但是实际上却变化了。ABA问题的解决思路就是使用版本号。
+在变量前面追加上版本号，每次变量更新的时候把版本号加一，那么A－B－A 就会变成1A-2B－3A。
+
+从Java1.5开始JDK的atomic包里提供了一个类AtomicStampedReference来解决ABA问题。
+这个类的compareAndSet方法作用是首先检查当前引用是否等于预期引用，并且当前标志是否等于预期标志，如果全部相等，
+则以原子方式将该引用和该标志的值设置为给定的更新值。
+
+2.循环时间长开销大。
+自旋CAS如果长时间不成功，会给CPU带来非常大的执行开销。如果JVM能支持处理器提供的pause指令那么效率会有一定的提升，
+pause指令有两个作用，第一它可以延迟流水线执行指令（de-pipeline）,使CPU不会消耗过多的执行资源，延迟的时间取决于具体实现的版本，
+在一些处理器上延迟时间是零。第二它可以避免在退出循环的时候因内存顺序冲突（memory order violation）而引起CPU流水线被清空（CPU pipeline flush），
+从而提高CPU的执行效率。
+
+3. 只能保证一个共享变量的原子操作。
+当对一个共享变量执行操作时，我们可以使用循环CAS的方式来保证原子操作，但是对多个共享变量操作时，循环CAS就无法保证操作的原子性，这个时候就可以用锁，
+或者有一个取巧的办法，就是把多个共享变量合并成一个共享变量来操作。比如有两个共享变量i＝2,j=a，合并一下ij=2a，然后用CAS来操作ij。
+从Java1.5开始JDK提供了AtomicReference类来保证引用对象之间的原子性，你可以把多个变量放在一个对象里来进行CAS操作。
+
+
+concurrent包的实现
+由于java的CAS同时具有 volatile 读和volatile写的内存语义，因此Java线程之间的通信现在有了下面四种方式：
+1.A线程写volatile变量，随后B线程读这个volatile变量。
+2.A线程写volatile变量，随后B线程用CAS更新这个volatile变量。
+3.A线程用CAS更新一个volatile变量，随后B线程用CAS更新这个volatile变量。
+4.A线程用CAS更新一个volatile变量，随后B线程读这个volatile变量。
+
+Java的CAS会使用现代处理器上提供的高效机器级别原子指令，这些原子指令以原子方式对内存执行读-改-写操作，
+这是在多处理器中实现同步的关键（从本质上来说，能够支持原子性读-改-写指令的计算机器，是顺序计算图灵机的异步等价机器，
+因此任何现代的多处理器都会去支持某种能对内存执行原子性读-改-写操作的原子指令）。同时，volatile变量的读/写和CAS可以实现线程之间的通信。
+把这些特性整合在一起，就形成了整个concurrent包得以实现的基石。如果我们仔细分析concurrent包的源代码实现，会发现一个通用化的实现模式：
+首先，声明共享变量为volatile；
+然后，使用CAS的原子条件更新来实现线程之间的同步；
+同时，配合以volatile的读/写和CAS所具有的volatile读和写的内存语义来实现线程之间的通信。
+
+
+**************************************详细分析*********************
+在Java并发包中有这样一个包，java.util.concurrent.atomic，该包是对Java部分数据类型的原子封装，在原有数据类型的基础上，提供了原子性的操作方法，
+保证了线程安全。
+如：
+AtomicInteger：
+public final int incrementAndGet() {//increment增加的意思
+    for (;;) {  
+        int current = get();  
+        int next = current + 1;  
+        if (compareAndSet(current, next))  
+            return next;  
+    }  
+}  
+
+public final int decrementAndGet() {//decrement减少的意思
+    for (;;) {  
+        int current = get();  
+        int next = current - 1;  
+        if (compareAndSet(current, next))  
+            return next;  
+    }  
+}  
+
+以这两个方法为例，incrementAndGet方法相当于原子性的++i，decrementAndGet方法相当于原子性的--i（++i或--i不是一个原子性的操作），
+这两个方法中都没有使用阻塞式的方式来保证原子性（如Synchronized），那它们是如何保证原子性的呢？
+
+具体实现：
+
+CAS有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，将内存值V修改为B，否则返回V。
+这是一种乐观锁的思路，它相信在它修改之前，没有其它线程去修改它；
+而Synchronized是一种悲观锁，它认为在它修改之前，一定会有其它线程去修改它，悲观锁效率很低。
+
+1.int current = get();  
+private volatile int value;  
+首先，变量value是volatile修饰的，我们知道volatile保证了变量的内存可见性，也就是所有工作线程中同一时刻都可以得到一致的值。
+public final int get() {  
+    return value;  
+}  
+拿到修改可见的value原值（现在内存里存的值，不知道修改了吗）
+
+2.int next = current - 1;  
+计算出期望值
+3.compareAndSet(current, next)
+比较
+private static final Unsafe unsafe = Unsafe.getUnsafe();  
+private static final long valueOffset;// 注意是静态的  
+  
+static {  
+  try {  
+    valueOffset = unsafe.objectFieldOffset  
+        (AtomicInteger.class.getDeclaredField("value"));// 反射出value属性，获取其在内存中的位置  
+  } catch (Exception ex) { throw new Error(ex); }  
+}  
+  
+public final boolean compareAndSet(int expect, int update) {  
+  return unsafe.compareAndSwapInt(this, valueOffset, expect, update);  
+}  
+
+compareAndSwapInt有4个参数，
+this - 当前AtomicInteger对象，
+Offset - value属性在内存中的位置(需要强调的是不是value值在内存中的位置)，
+expect - 预期值，
+update - 新值，
+
+根据上面的CAS操作过程，当内存中的value值等于expect值时，则将内存中的value值更新为update值，并返回true，否则返回false。
+在这里我们有必要对Unsafe有一个简单点的认识，从名字上来看，不安全，确实，这个类是用于执行低级别的、不安全操作的方法集合，
+这个类中的方法大部分是对内存的直接操作，所以不安全，但当我们使用反射、并发包时，都间接的用到了Unsafe。
+
+
+循环内，获取当前值并设置更新值，调用compareAndSet进行CAS操作，如果成功就返回更新值，否则重试到成功为止。
+这里可能存在一个隐患，那就是循环时间过长，总是在当前线程compareAndSet时，有另一个线程设置了value(点子太背了)，
+这个当然是属于小概率时间，目前Java貌似还不能处理这种情况。
+
+***********************************************************
+
+
+CAS和synchronized适用场景
+1、对于资源竞争较少的情况，使用synchronized同步锁进行线程阻塞和唤醒切换以及用户态内核态间的切换操作额外浪费消耗cpu资源；而CAS基于硬件实现，
+不需要进入内核，不需要切换线程，操作自旋几率较少，因此可以获得更高的性能。
+
+2、对于资源竞争严重的情况，CAS自旋的概率会比较大，从而浪费更多的CPU资源，效率低于synchronized。
+
+以java.util.concurrent.atomic包中AtomicInteger类为例，其getAndIncrement()方法实现如下：
+public final int getAndIncrement() {
+        for (;;) {
+            int current = get();
+            int next = current + 1;
+            if (compareAndSet(current, next))
+                return current;
+        }
+}
+
+如果compareAndSet(current, next)方法成功执行，则直接返回；如果线程竞争激烈，导致compareAndSet(current, next)方法一直不能成功执行，
+则会一直循环等待，直到耗尽cpu分配给该线程的时间片，从而大幅降低效率。
+
+
+总结：
+1、使用CAS在线程冲突严重时，会大幅降低程序性能；CAS只适合于线程冲突较少的情况使用。
+2、synchronized在jdk1.6之后，已经改进优化。synchronized的底层实现主要依靠Lock-Free的队列，基本思路是自旋后阻塞，竞争切换后继续竞争锁，
+稍微牺牲了公平性，但获得了高吞吐量。在线程冲突较少的情况下，可以获得和CAS类似的性能；而线程冲突严重的情况下，性能远高于CAS。
+
+
+
+
+CAS通过调用JNI的代码实现。JNI:Java Native Interface为JAVA本地调用，允许java调用其他语言。
+现代的CPU提供了特殊的指令，可以自动更新共享数据，而且能够检测到其他线程的干扰，而 compareAndSet() 就用这些代替了锁定。
+
+拿出AtomicInteger来研究在没有锁的情况下是如何做到数据正确性的。
+private volatile int value;
+在没有锁的机制下可能需要借助volatile原语，保证线程间的数据是可见的（共享的）。
+这样才获取变量的值的时候才能直接读取。
+public final int get() {
+        return value;
+}
+
+然后来看看++i是怎么做到的。
+
+public final int incrementAndGet() {//increment就是增加的意思
+    for (;;) {
+        int current = get();
+        int next = current + 1;
+        if (compareAndSet(current, next))
+            return next;
+    }
+}
+
+在这里采用了CAS操作，每次从内存中读取数据然后将此数据和+1后的结果进行CAS操作，如果成功就返回结果，否则重试直到成功为止。
+
+而compareAndSet利用JNI来完成CPU指令的操作：
+public final boolean compareAndSet(int expect, int update) {   
+    return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+}
+
+整体的过程就是这样子的，利用CPU的CAS指令，同时借助JNI来完成Java的非阻塞算法。其它原子操作都是利用类似的特性完成的。
+
+其中
+
+unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+类似：
+if (this == expect) {
+  this = update
+  return true;
+} else {
+  return false;
+}
+
+成功过程中需要2个步骤：比较this == expect，替换this = update，compareAndSwapInt如何这两个步骤的原子性呢？
+compareAndSwapInt就是借助C来调用CPU底层指令实现的。
+下面是sun.misc.Unsafe类的compareAndSwapInt()方法的源代码：
+public final native boolean compareAndSwapInt(Object o, long offset,
+                                              int expected,
+                                              int x);
+                                              
+可以看到这是个本地方法调用。这个本地方法在openjdk中依次调用的c++代码为：unsafe.cpp，atomic.cpp和atomicwindowsx86.inline.hpp。
+
+下面是对应于intel x86处理器的源代码的片段：
+ 
+// Adding a lock prefix to an instruction on MP machine
+// VC++ doesn't like the lock prefix to be on a single line
+// so we can't insert a label after the lock prefix.
+// By emitting a lock prefix, we can define a label after it.
+#define LOCK_IF_MP(mp) __asm cmp mp, 0  \
+                       __asm je L0      \
+                       __asm _emit 0xF0 \
+                       __asm L0:
+
+inline jint     Atomic::cmpxchg    (jint     exchange_value, volatile jint*     dest, jint     compare_value) {
+  // alternative for InterlockedCompareExchange
+  int mp = os::is_MP();
+  __asm {
+    mov edx, dest
+    mov ecx, exchange_value
+    mov eax, compare_value
+    LOCK_IF_MP(mp)
+    cmpxchg dword ptr [edx], ecx
+  }
+}
+
+如上面源代码所示，程序会根据当前处理器的类型来决定是否为cmpxchg指令添加lock前缀。
+如果程序是在多处理器上运行，就为cmpxchg指令加上lock前缀（lock cmpxchg）。
+反之，如果程序是在单处理器上运行，就省略lock前缀（单处理器自身会维护单处理器内的顺序一致性，不需要lock前缀提供的内存屏障效果）。
+ 
+
+
+
+补充：
+
+intel的手册对lock前缀的说明如下：
+1.确保对内存的读-改-写操作原子执行。在Pentium及Pentium之前的处理器中，带有lock前缀的指令在执行期间会锁住总线，使得其他处理器暂时无法通过总线访问内存。
+很显然，这会带来昂贵的开销。从Pentium 4，Intel Xeon及P6处理器开始，intel在原有总线锁的基础上做了一个很有意义的优化：
+如果要访问的内存区域（area of memory）在lock前缀指令执行期间已经在处理器内部的缓存中被锁定（即包含该内存区域的缓存行当前处于独占或以修改状态），
+并且该内存区域被完全包含在单个缓存行（cache line）中，那么处理器将直接执行该指令。由于在指令执行期间该缓存行会一直被锁定，
+其它处理器无法读/写该指令要访问的内存区域，因此能保证指令执行的原子性。这个操作过程叫做缓存锁定（cache locking），
+缓存锁定将大大降低lock前缀指令的执行开销，但是当多处理器之间的竞争程度很高或者指令访问的内存地址未对齐时，仍然会锁住总线。
+2.禁止该指令与之前和之后的读和写指令重排序。
+3.把写缓冲区中的所有数据刷新到内存中。
+
+关于CPU的锁有如下3种：
+1.处理器自动保证基本内存操作的原子性
+首先处理器会自动保证基本的内存操作的原子性。处理器保证从系统内存当中读取或者写入一个字节是原子的，
+意思是当一个处理器读取一个字节时，其他处理器不能访问这个字节的内存地址。
+奔腾6和最新的处理器能自动保证单处理器对同一个缓存行里进行16/32/64位的操作是原子的，但是复杂的内存操作处理器不能自动保证其原子性，
+比如跨总线宽度，跨多个缓存行，跨页表的访问。但是处理器提供总线锁定和缓存锁定两个机制来保证复杂内存操作的原子性。 
+
+2.使用总线锁保证原子性
+第一个机制是通过总线锁保证原子性。如果多个处理器同时对共享变量进行读改写（i++就是经典的读改写操作）操作，那么共享变量就会被多个处理器同时进行操作，
+这样读改写操作就不是原子的，操作完之后共享变量的值会和期望的不一致.
+举个例子：如果i=1,我们进行两次i++操作，我们期望的结果是3，但是有可能结果是2。
+原因是有可能多个处理器同时从各自的缓存中读取变量i，分别进行加一操作，然后分别写入系统内存当中。
+
+那么想要保证读改写共享变量的操作是原子的，就必须保证CPU1读改写共享变量的时候，CPU2不能操作缓存了该共享变量内存地址的缓存。
+处理器使用总线锁就是来解决这个问题的。所谓总线锁就是使用处理器提供的一个LOCK＃信号，当一个处理器在总线上输出此信号时，其他处理器的请求将被阻塞住,
+那么该处理器可以独占使用共享内存。
+
+3.使用缓存锁保证原子性
+第二个机制是通过缓存锁定保证原子性。在同一时刻我们只需保证对某个内存地址的操作是原子性即可，但总线锁定把CPU和内存之间通信锁住了，这使得锁定期间，
+其他处理器不能操作其他内存地址的数据，所以总线锁定的开销比较大，最近的处理器在某些场合下使用缓存锁定代替总线锁定来进行优化。
+
+频繁使用的内存会缓存在处理器的L1，L2和L3高速缓存里，那么原子操作就可以直接在处理器内部缓存中进行，并不需要声明总线锁，
+在奔腾6和最近的处理器中可以使用“缓存锁定”的方式来实现复杂的原子性。所谓“缓存锁定”就是如果缓存在处理器缓存行中内存区域在LOCK操作期间被锁定，
+当它执行锁操作回写内存时，处理器不在总线上声言LOCK＃信号，而是修改内部的内存地址，并允许它的缓存一致性机制来保证操作的原子性，
+因为缓存一致性机制会阻止同时修改被两个以上处理器缓存的内存区域数据，当其他处理器回写已被锁定的缓存行的数据时会起缓存行无效，
+在例1中，当CPU1修改缓存行中的i时使用缓存锁定，那么CPU2就不能同时缓存了i的缓存行。
+
+但是有两种情况下处理器不会使用缓存锁定。第一种情况是：当操作的数据不能被缓存在处理器内部，或操作的数据跨多个缓存行（cache line），
+则处理器会调用总线锁定。第二种情况是：有些处理器不支持缓存锁定。对于Inter486和奔腾处理器,就算锁定的内存区域在处理器的缓存行中也会调用总线锁定。
+
+以上两个机制我们可以通过Inter处理器提供了很多LOCK前缀的指令来实现。比如位测试和修改指令BTS，BTR，BTC，
+交换指令XADD，CMPXCHG和其他一些操作数和逻辑指令，比如ADD（加），OR（或）等，被这些指令操作的内存区域就会加锁，导致其他处理器不能同时访问它。
+
+
+
+
+
+
+
+
+在jdk1.7中，AtomicInteger的getAndIncrement是这样的：
+public final int getAndIncrement() {
+    for (;;) {
+        int current = get();
+        int next = current + 1;
+        if (compareAndSet(current, next))
+            return current;
+    }
+}
+public final boolean compareAndSet(int expect, int update) {
+    return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+}
+
+而在jdk1.8中，是这样的：
+public final int getAndIncrement() {
+    return unsafe.getAndAddInt(this, valueOffset, 1);
+}
+
+
+可以看出，在jdk1.8中，直接使用了Unsafe的getAndAddInt方法，而在jdk1.7的Unsafe中，没有此方法。
+
+jdk1.8中Unsafe的源码：
+public final int getAndAddInt(Object obj, long l, int i){
+    int j;
+    do
+        j = getIntVolatile(obj, l);
+    while(!compareAndSwapInt(obj, l, j, j + i));
+    return j;
+}
+public native int getIntVolatile(Object obj, long l);
+public final native boolean compareAndSwapInt(Object obj, long l, int i, int j);
+
+openjdk8的Unsafe源码：
+public final int getAndAddInt(Object o, long offset, int delta) {
+    int v;
+    do {
+        v = getIntVolatile(o, offset);
+    } while (!compareAndSwapInt(o, offset, v, v + delta));
+    return v;
+}
+public native int     getIntVolatile(Object o, long offset);
+public final native boolean compareAndSwapInt(Object o, long offset,
+                                              int expected,
+                                              int x);
+
+
+
+
